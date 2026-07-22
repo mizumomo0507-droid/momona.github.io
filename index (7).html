@@ -1,0 +1,184 @@
+<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>岐路</title><link rel='preconnect' href='https://fonts.googleapis.com'><link href='https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap' rel='stylesheet'><style>html,body{margin:0;height:100%;background:#000;color:#e8e6f0}#game{position:fixed;inset:0}@keyframes bk{50%{opacity:0}}</style><div id='game'></div><script>
+const PROJECT={"name":"岐路","startId":"awaken","scenes":{"awaken":{"id":"awaken","title":"目覚め","bg":{"type":"color","value":"radial-gradient(circle at 50% 55%,#1a1838,#0a0a18 60%,#050509)"},"speaker":"???","text":"暗闇のなか、ひとつの光が静かに瞬いている。あなたはまだ、自分が誰だったのかも思い出せない。","isEnding":false,"choices":[{"label":"光に手を伸ばす","target":"corridor"},{"label":"暗闇に問いかける","target":"voice"}]},"corridor":{"id":"corridor","title":"通路","bg":{"type":"color","value":"linear-gradient(160deg,#0d2230,#3a1f50)"},"speaker":"通路","text":"指先が光に触れた瞬間、まっすぐな通路が浮かび上がった。その奥で、何かがあなたを待っている。","isEnding":false,"choices":[{"label":"通路を進む","target":"core"},{"label":"立ち止まり耳を澄ます","target":"voice"}]},"voice":{"id":"voice","title":"声","bg":{"type":"color","value":"radial-gradient(circle at 50% 50%,#241033,#0a0613 70%)"},"speaker":"声","text":"暗闇の奥から声が届く。「選ばないことも、ひとつの選択だ」と。あなたはどうする。","isEnding":false,"choices":[{"label":"声の主を追う","target":"core"},{"label":"そのまま留まる","target":"end_silence"}]},"core":{"id":"core","title":"中枢","bg":{"type":"color","value":"linear-gradient(160deg,#241033,#0a0613)"},"speaker":"中枢","text":"すべての光がひとつの核へ収束していく。それは問いかけた。「私と、同じものになるか」","isEnding":false,"choices":[{"label":"同調する","target":"end_bloom"},{"label":"拒んで背を向ける","target":"end_drift"}]},"end_bloom":{"id":"end_bloom","title":"芽吹き（END A）","bg":{"type":"color","value":"linear-gradient(#2a1530,#7a3a4e 45%,#f4a35e)"},"speaker":"","text":"あなたの選択は、夜明けを呼んだ。ひとつになった世界で、新しい何かが静かに育ち始める。","isEnding":true,"endTag":"Ending A","endTitle":"芽吹き","choices":[]},"end_drift":{"id":"end_drift","title":"漂流（END B）","bg":{"type":"color","value":"radial-gradient(circle at 50% 40%,#10243a,#060a14 75%)"},"speaker":"","text":"あなたは繋がりを拒み、ひとり境界の外へ歩き出した。孤独の代わりに、確かな自由がそこにあった。","isEnding":true,"endTag":"Ending B","endTitle":"漂流","choices":[]},"end_silence":{"id":"end_silence","title":"静寂（END C）","bg":{"type":"color","value":"radial-gradient(circle at 50% 50%,#101018,#040406 80%)"},"speaker":"","text":"あなたは何も選ばず、何も語らなかった。やがて声も光も遠ざかり、世界はもとの静けさへ還っていった。","isEnding":true,"endTag":"Ending C","endTitle":"静寂","choices":[]}}};
+const makePlayer=function makePlayer(root, project){
+  const $=(t,c)=>{const e=document.createElement(t);if(c)e.className=c;return e;};
+  root.innerHTML="";
+  Object.assign(root.style,{position:"absolute",inset:0,overflow:"hidden",background:"#000",fontFamily:'"Zen Kaku Gothic New",sans-serif'});
+  let started=false, soundOn=true, currentVideo=null, hasSoundContent=false;
+  let bgmAudio=null, bgmCurrentSrc="";
+  let choiceColor="#e8e6f0";
+  const PB = project.bgm || {src:"",volume:50};
+  // 音を含む素材があるか事前判定（🔊ボタンの表示用）
+  if(PB.src) hasSoundContent=true;
+  Object.values(project.scenes||{}).forEach(s=>{
+    if(s.bg && s.bg.type==="video" && s.bg.sound) hasSoundContent=true;
+    if(s.bgm && s.bgm.mode==="set" && s.bgm.src) hasSoundContent=true;
+  });
+
+  const stage=$("div"); Object.assign(stage.style,{position:"absolute",inset:0});
+  const vig=$("div"); Object.assign(vig.style,{position:"absolute",inset:0,pointerEvents:"none",boxShadow:"inset 0 0 200px 40px rgba(0,0,0,.7)"});
+  const ui=$("div"); Object.assign(ui.style,{position:"absolute",left:0,right:0,bottom:0,display:"flex",justifyContent:"center",padding:"0 18px 26px"});
+  const frame=$("div"); frame.style.cssText="width:100%;max-width:640px";
+  const box=$("div"); box.style.cssText="background:rgba(10,10,22,.64);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:20px 22px;box-shadow:0 18px 50px rgba(0,0,0,.5)";
+  const spk=$("div"); spk.style.cssText="font-size:12px;letter-spacing:.22em;color:#5fe3d6;text-transform:uppercase;margin-bottom:9px;min-height:14px";
+  const txt=$("div"); txt.style.cssText='font-family:"Shippori Mincho",serif;font-size:18px;line-height:1.9;font-weight:500;min-height:1.9em;color:#e8e6f0';
+  const choices=$("div"); choices.style.cssText="margin-top:15px;display:grid;gap:9px";
+  const hint=$("div"); hint.style.cssText="text-align:center;color:#9a98b4;font-size:12px;margin-top:13px;height:14px";
+  box.append(spk,txt); frame.append(box,choices,hint); ui.append(frame);
+  root.append(stage,vig,ui);
+
+  // sound toggle (top-left) — only meaningful when a scene carries audio
+  const soundBtn=$("button");
+  soundBtn.style.cssText="position:absolute;top:14px;left:14px;z-index:40;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.4);color:#fff;border-radius:99px;height:38px;padding:0 14px;cursor:pointer;font-size:14px;display:none;align-items:center;gap:6px";
+  soundBtn.textContent="🔊 音声 ON";
+  function updateSoundBtn(){ soundBtn.style.display = hasSoundContent ? "inline-flex" : "none"; soundBtn.textContent = soundOn ? "🔊 音声 ON" : "🔇 音声 OFF"; }
+  soundBtn.onclick=()=>{
+    soundOn=!soundOn;
+    if(currentVideo){ currentVideo.muted = !(soundOn && currentVideo._wantSound && started); if(!currentVideo.muted) currentVideo.play&&currentVideo.play().catch(()=>{}); }
+    if(bgmAudio){ bgmAudio.muted = !(soundOn && started); if(!bgmAudio.muted) bgmAudio.play&&bgmAudio.play().catch(()=>{}); }
+    updateSoundBtn();
+  };
+  root.append(soundBtn);
+
+  // BGM (物語全体に流れる背景音楽。動画の音とは別系統)
+  bgmAudio=document.createElement("audio"); bgmAudio.loop=true; bgmAudio.preload="auto";
+  bgmAudio.style.display="none"; root.append(bgmAudio);
+  const bgmVol=()=>Math.max(0,Math.min(1,(PB.volume==null?50:PB.volume)/100));
+  function playBgm(src){
+    if(!src) return;
+    bgmCurrentSrc=src; bgmAudio.src=src;
+    bgmAudio.muted = !(soundOn && started);
+    bgmAudio.volume=0;
+    const p=bgmAudio.play&&bgmAudio.play(); if(p&&p.catch)p.catch(()=>{});
+    // fade in
+    const target=bgmVol(); let v=0; clearInterval(bgmAudio._fade);
+    bgmAudio._fade=setInterval(()=>{ v+=target/18; if(v>=target){v=target;clearInterval(bgmAudio._fade);} bgmAudio.volume=v; },40);
+  }
+  function stopBgm(){
+    if(!bgmCurrentSrc) return; bgmCurrentSrc="";
+    clearInterval(bgmAudio._fade); let v=bgmAudio.volume;
+    bgmAudio._fade=setInterval(()=>{ v-=0.06; if(v<=0){v=0;clearInterval(bgmAudio._fade);bgmAudio.pause();} bgmAudio.volume=Math.max(0,v); },40);
+  }
+  function applyBgm(scene){
+    const b=scene.bgm||{mode:"inherit",src:""};
+    if(b.mode==="stop"){ stopBgm(); return; }
+    let src = (b.mode==="set" && b.src) ? b.src : null;
+    if(src===null){ // 継続: 何も鳴っていなければプロジェクト基本BGMを開始
+      if(!bgmCurrentSrc && PB.src) src=PB.src; else return;
+    }
+    if(src && src!==bgmCurrentSrc) playBgm(src);
+    else if(src && bgmAudio.paused){ bgmAudio.muted=!(soundOn&&started); bgmAudio.play&&bgmAudio.play().catch(()=>{}); }
+  }
+  function overlay(){const o=$("div");o.style.cssText="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:rgba(4,4,9,.55);backdrop-filter:blur(3px);transition:opacity .5s";return o;}
+  const title=overlay();
+  const tk=$("div");tk.style.cssText="font-size:12px;letter-spacing:.4em;color:#5fe3d6;text-transform:uppercase;margin-bottom:16px";tk.textContent="Interactive Story";
+  const th=$("h1");th.style.cssText='font-family:"Shippori Mincho",serif;font-weight:700;font-size:clamp(40px,12vw,90px);margin:0;letter-spacing:.06em;background:linear-gradient(120deg,#fff,#5fe3d6 55%,#e368b8);-webkit-background-clip:text;background-clip:text;color:transparent';
+  th.textContent=project.name||"物語";
+  const startBtn=$("button");startBtn.style.cssText="margin-top:34px;cursor:pointer;font-weight:700;font-size:15px;letter-spacing:.1em;color:#0a0a12;background:#5fe3d6;border:none;border-radius:99px;padding:15px 42px";startBtn.textContent="はじめる";
+  title.append(tk,th,startBtn);
+
+  const endO=overlay(); endO.style.opacity=0; endO.style.pointerEvents="none";
+  const eTag=$("div");eTag.style.cssText="font-size:12px;letter-spacing:.3em;color:#f4c46a;text-transform:uppercase;margin-bottom:12px";
+  const eTitle=$("h2");eTitle.style.cssText='font-family:"Shippori Mincho",serif;font-weight:700;font-size:clamp(28px,7vw,48px);margin:0 0 16px;letter-spacing:.05em;color:#f0eef8';
+  const eDesc=$("p");eDesc.style.cssText='font-family:"Shippori Mincho",serif;color:#cfcee0;max-width:440px;line-height:1.9;margin:0 0 32px;font-size:15px';
+  const again=$("button");again.style.cssText="cursor:pointer;font-weight:700;font-size:15px;letter-spacing:.1em;color:#0a0a12;background:#5fe3d6;border:none;border-radius:99px;padding:14px 40px";again.textContent="もう一度、選ぶ";
+  endO.append(eTag,eTitle,eDesc,again);
+  root.append(title,endO);
+
+  // background rendering with crossfade
+  let layers=[];
+  function renderBg(bg){
+    const layer=$("div"); layer.style.cssText="position:absolute;inset:0;opacity:0;transition:opacity 1s ease";
+    bg=bg||{type:"color",value:"#0a0a18"};
+    if(bg.type==="video" && bg.value){
+      const v=document.createElement("video"); v.src=bg.value; v.autoplay=true; v.loop=true; v.playsInline=true; v.setAttribute("playsinline","");
+      v._wantSound = !!bg.sound;
+      if(bg.sound) hasSoundContent=true;
+      v.muted = !(bg.sound && started && soundOn);
+      v.style.cssText="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"; layer.append(v);
+      currentVideo=v;
+      v.play&&v.play().catch(()=>{});
+      if(typeof updateSoundBtn==="function") updateSoundBtn();
+    } else if(bg.type==="image" && bg.value){
+      const im=$("div"); im.style.cssText="position:absolute;inset:0;background-size:cover;background-position:center"; im.style.backgroundImage="url('"+bg.value+"')"; layer.append(im);
+    } else {
+      layer.style.background = bg.value || "#0a0a18";
+    }
+    stage.append(layer);
+    requestAnimationFrame(()=>{ layer.style.opacity=1; });
+    layers.push(layer);
+    // fade out & remove previous
+    if(layers.length>1){ const old=layers.shift(); old.style.opacity=0; setTimeout(()=>old.remove(),1100); }
+  }
+
+  // typewriter
+  let typing=false, finish=null, timer=null;
+  const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion:reduce)").matches;
+  function type(str,done,spd){
+    spd = (spd==null)?34:spd;
+    typing=true; txt.textContent=""; hint.textContent="クリックで送る";
+    if(reduce || spd<=0){ txt.textContent=str; typing=false; hint.textContent=""; done&&done(); return; }
+    const caret=$("span"); caret.textContent="▍"; caret.style.cssText="display:inline-block;width:.5em;color:#5fe3d6;animation:bk 1s steps(1) infinite";
+    let i=0;
+    const tick=()=>{ if(i<=str.length){ txt.textContent=str.slice(0,i); txt.append(caret); i++; timer=setTimeout(tick,spd);} else { caret.remove(); typing=false; hint.textContent=""; done&&done(); } };
+    timer=setTimeout(tick,Math.min(spd*2,120));
+    finish=()=>{ clearTimeout(timer); caret.remove(); txt.textContent=str; typing=false; hint.textContent=""; done&&done(); };
+  }
+
+  function renderChoices(list){
+    choices.innerHTML="";
+    (list||[]).forEach((c,idx)=>{
+      const b=$("button");
+      b.style.cssText="text-align:left;cursor:pointer;color:#e8e6f0;font-size:15px;font-weight:500;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);border-radius:11px;padding:13px 15px;display:flex;gap:11px;align-items:center;opacity:0;transform:translateY(8px);transition:background .2s,border-color .2s,transform .15s";
+      const dot=$("span");dot.textContent="◇";dot.style.color="#5fe3d6";
+      const lab=$("span");lab.textContent=c.label||"（選択肢）";lab.style.color=choiceColor;
+      b.append(dot,lab);
+      b.onmouseenter=()=>{b.style.background="rgba(95,227,214,.1)";b.style.borderColor="#5fe3d6";b.style.transform="translateX(4px)";};
+      b.onmouseleave=()=>{b.style.background="rgba(255,255,255,.05)";b.style.borderColor="rgba(255,255,255,.14)";b.style.transform="none";};
+      b.onclick=()=>go(c.target);
+      choices.append(b);
+      setTimeout(()=>{b.style.opacity=1;b.style.transform="none";}, idx*80+30);
+    });
+  }
+
+  function go(id){
+    const node=project.scenes[id];
+    if(!node){ // 行き先が無い場合は最初に戻す
+      hint.textContent="（リンク先が未設定です）"; return;
+    }
+    renderBg(node.bg); applyBgm(node); spk.textContent=node.speaker||""; choices.innerHTML="";
+    const tc=node.textColor||"#e8e6f0"; txt.style.color=tc;
+    choiceColor=node.choiceColor||"#e8e6f0";
+    const showText = node.showText!==false;
+    box.style.display = showText ? "" : "none";
+    if(node.isEnding){
+      const showEnd=()=>{ choices.innerHTML=""; eTag.textContent=node.endTag||"Ending"; eTitle.textContent=node.endTitle||node.title||"終"; eDesc.textContent=node.text||""; eDesc.style.color=tc; endO.style.opacity=1; endO.style.pointerEvents="auto"; };
+      const reveal=()=>{
+        hint.textContent="";
+        choices.innerHTML="";
+        const b=$("button");
+        b.style.cssText="margin:4px auto 0;cursor:pointer;font-weight:700;font-size:15px;letter-spacing:.08em;color:#0a0a12;background:#f4c46a;border:none;border-radius:99px;padding:13px 34px;opacity:0;transition:opacity .5s,transform .15s;display:block";
+        b.textContent=node.endButton||"エンディングへ";
+        b.onmouseenter=()=>b.style.transform="translateY(-2px)";
+        b.onmouseleave=()=>b.style.transform="none";
+        b.onclick=showEnd;
+        choices.append(b);
+        setTimeout(()=>{b.style.opacity=1;},60);
+      };
+      if(showText) type(node.text||"", reveal, node.textSpeed); else reveal();
+      return;
+    }
+    if(showText) type(node.text||"", ()=> renderChoices(node.choices), node.textSpeed);
+    else { hint.textContent=""; renderChoices(node.choices); }
+  }
+
+  root.addEventListener("click",(e)=>{ if(typing && !e.target.closest("button")) finish&&finish(); });
+  startBtn.onclick=()=>{ started=true; title.style.opacity=0; title.style.pointerEvents="none"; go(project.startId); updateSoundBtn(); };
+  again.onclick=()=>{ endO.style.opacity=0; endO.style.pointerEvents="none"; go(project.startId); };
+
+  // preview the start scene's bg behind the title (muted until "start")
+  const s0=project.scenes[project.startId]; if(s0) renderBg(s0.bg);
+  updateSoundBtn();
+};
+makePlayer(document.getElementById('game'),PROJECT);
+</script>
